@@ -27,7 +27,7 @@ X = data.drop('Dependent', axis=1)
 y = data['Dependent']
 kf = KFold(n_splits=10, shuffle=True, random_state=101)
 
-X_train,y_train,X_test,y_test,X_val,y_val = training_and_test(X,y, 0.90, 0.01)
+X_train,y_train,X_test,y_test = training_and_test(X,y, 0.90, 0.01)
 all_features=X_train.columns
 #model creation
 model, param_dict = get_model(path,optuna_rep,X_train.shape[1],X_train,y_train,X_test,y_test,

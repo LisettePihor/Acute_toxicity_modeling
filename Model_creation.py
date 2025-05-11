@@ -61,25 +61,22 @@ def remove_correlated(df:pd.DataFrame,threshold:float):
 def training_and_test(X,y,corr_threshold, var_threshold):
     """Splits and scales given data
     Removes correlated and low variance features"""
-    #Remove correlated
-    X_corr = remove_correlated(X,corr_threshold)
-    print(f'Removed {len(X.columns)-len(X_corr.columns)} features')
     #Split and scale
-    X_train, X_test, y_train, y_test = train_test_split(X_corr, y, test_size=0.2, random_state=42)
-    #X_train, X_val, y_train, y_val = train_test_split(X_corr, y, test_size=0.2, random_state=42)
-
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    #Remove correlated
+    X_train_corr = remove_correlated(X_train,corr_threshold)
+    X_test_corr = X_test[X_train_corr.columns]
+    print(f'Removed {len(X.columns)-len(X_train_corr.columns)} features')
     scaler = StandardScaler()
-    X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train),columns=X_train.columns,index=X_train.index)
-    X_test_scaled = pd.DataFrame(scaler.transform(X_test),columns=X_test.columns,index=X_test.index)
-    #X_val_scaled = pd.DataFrame(scaler.transform(X_val),columns=X_test.columns,index=X_val.index)
+    X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train_corr),columns=X_train_corr.columns,index=X_train_corr.index)
+    X_test_scaled = pd.DataFrame(scaler.transform(X_test_corr),columns=X_test_corr.columns,index=X_test_corr.index)
 
     #Remove low variance
     sel = VarianceThreshold(var_threshold)
     X_var_train = pd.DataFrame(sel.fit_transform(X_train_scaled), columns = sel.get_feature_names_out())
     X_var_test = pd.DataFrame(sel.transform(X_test_scaled),columns = sel.get_feature_names_out())
-    #X_var_val = pd.DataFrame(sel.transform(X_val_scaled),columns = sel.get_feature_names_out())
 
-    print(f'Removed {len(X_corr.columns)-len(X_var_train.columns)} features')
+    print(f'Removed {len(X_train_corr.columns)-len(X_var_train.columns)} features')
     return X_var_train,y_train,X_var_test,y_test
 
 
@@ -169,8 +166,8 @@ def get_model(path:str,nr_trials, data_input_shape, X_train:pd.DataFrame, y_trai
 
 def plot_prediciton(file_path,y_train,y_test,pred_train,pred_test,names=False):
     #Plot pred vs true for train and test
-    plt.scatter(y_train,pred_train, label='Treening andmed')
-    plt.scatter(y_test,pred_test, label="Test andmed")
+    plt.scatter(y_train,pred_train, label='Treeningandmed')
+    plt.scatter(y_test,pred_test, label="Testandmed")
     if names:
         for i, (true_val, pred_val) in enumerate(zip(y_test, pred_test)):
             plt.annotate(f'{i}', (true_val, pred_val), textcoords="offset points", xytext=(0,5), ha='center')
