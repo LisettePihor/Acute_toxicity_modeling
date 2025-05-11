@@ -16,7 +16,7 @@ SEED = 42
 tf.random.set_seed(SEED)
 
 
-#optuna method - inspiratsioon https://github.com/optuna/optuna-examples/blob/main/tensorflow/tensorflow_eager_simple.py
+#optuna objective method
 
 def objective(trial,input_shape_obj, X_train,y_train,kf):
     """Optuna objective function"""

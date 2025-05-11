@@ -109,6 +109,9 @@ def get_best_features(optuna_trials,function, path, all_features, param_dict, X_
 
 def get_features_and_plots(optuna_trials,functions,path,all_features, param_dict, X_train, y_train, X_test,y_test,kf):
     best_50_list = list()
+    #if no functions are given return an empty list
+    if len(functions) <= 0:
+        return best_50_list
     for function in functions:
         best_50features = get_best_features(optuna_trials,function,path,all_features,param_dict,
                                             X_train,y_train,X_test,y_test,kf)
