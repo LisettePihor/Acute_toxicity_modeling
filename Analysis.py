@@ -8,12 +8,15 @@ tf.random.set_seed(SEED)
 import keras
 from contextlib import redirect_stdout
 from sklearn.metrics import root_mean_squared_error
+from sklearn.model_selection import KFold
+import numpy as np
 
 #prepare data
 data = pd.read_csv('Tetrahymena_rdkit.csv', index_col='Unnamed: 0')
 X = data.drop('Dependent', axis=1)
 y = data['Dependent']
 X_train,y_train,X_test,y_test = training_and_test(X,y, 0.90, 0.01)
+kf = KFold(n_splits=10, shuffle=True, random_state=101)
 print(len(X_train))
 print(len(X_test))
 print(len(X_train.columns))
@@ -27,15 +30,26 @@ with open(os.path.join(path,'modelsummary.txt'), 'w') as f:
 #create dataframe from all of the selection methods
 functions = ['L1', 'permutation','tree','VIANN']
 df = pd.DataFrame()
-#for each function sort the dataframe, 
-#save the R2, R2 test, RMSE, RMSE test, features and function for the first five best models as a csv file 
-def get_RMSE(row,X,y):
+
+'''A helpful function for calculating RMSE'''
+def get_RMSE(row,X,y,type):
     model = row['model']
     features = row['features']
     X_test = X[features]
-    y_pred=model.predict(X_test)
-    rmse = root_mean_squared_error(y,y_pred)
+    if type=='test':
+        y_pred=model.predict(X_test)
+        rmse = root_mean_squared_error(y,y_pred)
+    elif type == 'train':
+        rmse_list = list()
+        for train_index, test_index in kf.split(X_test):
+            X_train_kf, X_test_kf = X_test.iloc[train_index], X_test.iloc[test_index]
+            y_train_kf, y_test_kf = y.iloc[train_index], y.iloc[test_index]
+            y_pred= model.predict(X_test_kf)
+            rmse = root_mean_squared_error(y_test_kf, y_pred)
+            rmse_list.append(rmse)
+        rmse= np.mean(rmse_list)
     return rmse
+#save the R2, R2 test, RMSE, RMSE test, features and function for the models as a csv file 
 #and add the function dataframe to the big dataframe
 for function in functions:
     function_file = os.path.join(path,f'{function}.pkl')
@@ -43,7 +57,8 @@ for function in functions:
         with open(function_file, 'rb') as file:
             best_models_list = pickle.load(file)
         best_models_df = pd.DataFrame(best_models_list, columns=['R2','R2_test','model','params','features','function'])
-        best_models_df['RMSE_test'] = best_models_df.apply(lambda row: get_RMSE(row,X_test,y_test),axis=1)
+        best_models_df['RMSE'] = best_models_df.apply(lambda row: get_RMSE(row,X_train,y_train,'train'),axis=1)
+        best_models_df['RMSE_test'] = best_models_df.apply(lambda row: get_RMSE(row,X_test,y_test,'test'),axis=1)
         best_models_df['nr_features'] = best_models_df['features'].apply(len)
         
         
