@@ -5,7 +5,7 @@ import keras
 import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] ='0'
 import tensorflow as tf
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, root_mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import VarianceThreshold
 import matplotlib.pyplot as plt
@@ -17,7 +17,6 @@ tf.random.set_seed(SEED)
 
 
 #optuna objective method
-
 def objective(trial,input_shape_obj, X_train,y_train,kf):
     """Optuna objective function"""
     n_layers = trial.suggest_int("n_layers", 3, 10)
@@ -44,8 +43,8 @@ def objective(trial,input_shape_obj, X_train,y_train,kf):
                 verbose=0, 
                 epochs=n_epochs,
                 callbacks=[early_stopping])
-    r2 = evaluate_model_KFold(model,X_train,y_train,kf)
-    return r2
+    rmse = evaluate_model_KFold_rmse(model,X_train,y_train,kf)
+    return rmse
 
 #Data preparation functions
 def remove_correlated(df:pd.DataFrame,threshold:float):
@@ -140,9 +139,10 @@ def get_model(path:str,nr_trials, data_input_shape, X_train:pd.DataFrame, y_trai
             else: best_model = keras.models.load_model(model_path)
     #if path does not exist, find optimal parameters with Optuna
     else:
-        study = optuna.create_study(direction='maximize')
+        sampler = optuna.samplers.TPESampler(seed=10)
+        study = optuna.create_study(direction='minimize',sampler=sampler)
         study.optimize(lambda trial: objective(trial,[data_input_shape], X_train,y_train,kf), 
-                       n_trials=nr_trials,n_jobs=4)
+                       n_trials=nr_trials,n_jobs=1)
         best_params = study.best_params
         with open(params_path, 'wb') as f:
             pickle.dump(best_params, f)
@@ -152,8 +152,10 @@ def get_model(path:str,nr_trials, data_input_shape, X_train:pd.DataFrame, y_trai
     #show model R2
     pred_train = best_model.predict(X_train)
     pred_test = best_model.predict(X_test)
-    print(r2_score(y_train,pred_train))
+    print(evaluate_model_KFold(best_model,X_train,y_train,kf))
     print(r2_score(y_test,pred_test))
+    print(root_mean_squared_error(y_train,pred_train))
+    print(root_mean_squared_error(y_test,pred_test))
 
     #Plot pred vs true for train and test
     plot = os.path.join(path,pref_filename)
@@ -188,7 +190,8 @@ def plot_history(file_path, history):
     plt.legend()
     plt.savefig(file_path)
     plt.close()
-#Evaluation methods
+#KFold evaluation methods
+#for R2
 def evaluate_model_KFold(model,X,y,kf):
     r2_list = list()
     for train_index, test_index in kf.split(X):
@@ -198,3 +201,13 @@ def evaluate_model_KFold(model,X,y,kf):
         r2 = r2_score(y_test_kf, y_pred)
         r2_list.append(r2)
     return np.mean(r2_list)
+#for RMSE
+def evaluate_model_KFold_rmse(model,X,y,kf):
+    rmse_list = list()
+    for train_index, test_index in kf.split(X):
+        X_train_kf, X_test_kf = X.iloc[train_index], X.iloc[test_index]
+        y_train_kf, y_test_kf = y.iloc[train_index], y.iloc[test_index]
+        y_pred= model.predict(X_test_kf)
+        rmse = root_mean_squared_error(y_test_kf, y_pred)
+        rmse_list.append(rmse)
+    return np.mean(rmse_list)

@@ -65,8 +65,9 @@ def get_best_features(optuna_trials,function, path, all_features, param_dict, X_
             X_test_current = X_test[current_features]
             #Calculate new hyperparameters when nr_features becomes lower than the given threshold
             if nr_features < (len(all_features)*threshold) or nr_features <10:
-                study = optuna.create_study(direction='maximize')
-                study.optimize(lambda trial: objective(trial,[X_current.shape[1]], X_current,y_train,kf), n_trials=optuna_trials,n_jobs=4)
+                sampler = optuna.samplers.TPESampler(seed=10)
+                study = optuna.create_study(direction='minimize',sampler=sampler)
+                study.optimize(lambda trial: objective(trial,[X_current.shape[1]], X_current,y_train,kf), n_trials=optuna_trials,n_jobs=1)
                 param_dict = study.best_params
                 threshold = threshold/2
             model = model_from_params(path,param_dict,[X_current.shape[1]],X_current,y_train,X_test_current, y_test, 'History.svg',VIANN_needed)
@@ -110,33 +111,27 @@ def get_best_features(optuna_trials,function, path, all_features, param_dict, X_
 def get_features_and_plots(optuna_trials,functions,path,all_features, param_dict, X_train, y_train, X_test,y_test,kf):
     best_50_list = list()
     #if no functions are given return an empty list
-    if len(functions) <= 0:
+    if len(functions) < 1:
         return best_50_list
-    for function in functions:
-        best_50features = get_best_features(optuna_trials,function,path,all_features,param_dict,
-                                            X_train,y_train,X_test,y_test,kf)
-        best_50_list.extend(best_50features)
-        #Plot the number of features vs R2
-        features_plot = os.path.join(path,f'{function}.svg')
-        if not os.path.isfile(features_plot):
-                data_sorted = sorted(best_50features, key=lambda x: len(x[4]))
-                num_features = [len(features) for _, _, _,_, features,_ in data_sorted]
-                r2test_scores = [r2 for _, r2, _, _,_,_ in data_sorted]
-                r2train_scores = [r2 for r2, _, _,_,_,_ in data_sorted]
-                plt.plot(num_features, r2train_scores,label='Treening andmed', marker='o')
-                plt.plot(num_features,r2test_scores,label="Test andmed", marker='o')
-                plt.title('Tunnuste arv ja R²')
-                plt.xlabel('Tunnuste arv')
-                plt.ylabel('R²')
-                plt.legend()
-                plt.savefig(features_plot)
-                plt.close()
-    #Add the ones already existing
-    all_functions = ['L1', 'permutation','tree','VIANN']
-    existing_functions = [column for column in all_functions if column not in functions]
-    for function in existing_functions:
-        best_50features = get_best_features(optuna_trials,function,path,all_features,param_dict,
-                                            X_train,y_train,X_test,y_test,kf)
-        best_50_list.extend(best_50features)
-    return best_50_list
+    else:
+        for function in functions:
+            best_50features = get_best_features(optuna_trials,function,path,all_features,param_dict,
+                                                X_train,y_train,X_test,y_test,kf)
+            best_50_list.extend(best_50features)
+            #Plot the number of features vs R2
+            features_plot = os.path.join(path,f'{function}.svg')
+            if not os.path.isfile(features_plot):
+                    data_sorted = sorted(best_50features, key=lambda x: len(x[4]))
+                    num_features = [len(features) for _, _, _,_, features,_ in data_sorted]
+                    r2test_scores = [r2 for _, r2, _, _,_,_ in data_sorted]
+                    r2train_scores = [r2 for r2, _, _,_,_,_ in data_sorted]
+                    plt.plot(num_features, r2train_scores,label='Treeningandmed', marker='o')
+                    plt.plot(num_features,r2test_scores,label="Testandmed", marker='o')
+                    plt.title('Tunnuste arv ja R²')
+                    plt.xlabel('Tunnuste arv')
+                    plt.ylabel('R²')
+                    plt.legend()
+                    plt.savefig(features_plot)
+                    plt.close()
+        return best_50_list
 

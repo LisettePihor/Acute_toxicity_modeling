@@ -1,7 +1,7 @@
 import pandas as pd
 import pickle
 import os
-from Model_creation import training_and_test
+from Model_creation import training_and_test, plot_prediciton
 import tensorflow as tf
 SEED = 42
 tf.random.set_seed(SEED)
@@ -10,7 +10,12 @@ from contextlib import redirect_stdout
 from sklearn.metrics import root_mean_squared_error
 from sklearn.model_selection import KFold
 import numpy as np
+import matplotlib.pyplot as plt
 
+#choose which trial to look
+path = 'main_sampler'
+#choose which functions to look
+functions = ['L1','tree','VIANN','permutation']
 #prepare data
 data = pd.read_csv('Tetrahymena_rdkit.csv', index_col='Unnamed: 0')
 X = data.drop('Dependent', axis=1)
@@ -20,15 +25,12 @@ kf = KFold(n_splits=10, shuffle=True, random_state=101)
 print(len(X_train))
 print(len(X_test))
 print(len(X_train.columns))
-#choose which trial to look
-path = 'main'
 #get the model with all features and save the model summary as a table
 model = keras.models.load_model(os.path.join(path,'model.keras'))
 with open(os.path.join(path,'modelsummary.txt'), 'w') as f:
     with redirect_stdout(f):
         model.summary()
 #create dataframe from all of the selection methods
-functions = ['L1', 'permutation','tree','VIANN']
 df = pd.DataFrame()
 
 '''A helpful function for calculating RMSE'''
@@ -61,7 +63,7 @@ for function in functions:
         best_models_df['RMSE_test'] = best_models_df.apply(lambda row: get_RMSE(row,X_test,y_test,'test'),axis=1)
         best_models_df['nr_features'] = best_models_df['features'].apply(len)
         
-        
+        plt.plot(best_models_df['nr_features'], best_models_df['R2'], marker='o',label=f'{function}')
         best_models_df = best_models_df.sort_values(by='R2', ascending=False)
         # Add to the big dataframe
         df = pd.concat([df, best_models_df], ignore_index=True)
@@ -70,9 +72,29 @@ for function in functions:
         # Save the best models to CSV
         best_models_df.to_csv(os.path.join(path,f'{function}_best_models.csv'), index=False)
 
-#Sort the big dataframe
-df = df.sort_values(by='R2', ascending=False)
+#Create a plot for comparing the functions
+features_plot = os.path.join(path,'comparison.svg')
+plt.title('Tunnuste arv ja R²')
+plt.xlabel('Tunnuste arv')
+plt.ylabel('R²')
+plt.legend()
+plt.savefig(features_plot)
+plt.close()
 
+#Sort the big dataframe
+df = df.sort_values(by='nr_features', ascending=True)
+best = df.iloc[0]
+#plot prediction for the best model
+best_model = best['model']
+X_train_new = X_train[best['features']]
+X_test_new = X_test[best['features']]
+pred_train = best_model.predict(X_train_new)
+pred_test = best_model.predict(X_test_new)
+plot_prediciton(os.path.join(path,f'best_prediction.svg'),y_train,y_test,pred_train,pred_test)
+#save the model summary for both
+with open(os.path.join(path,f'best_modelsummary.txt'), 'w') as f:
+    with redirect_stdout(f):
+        best_model.summary()
 # Save the big dataframe to CSV
 df.drop(columns=['model'], inplace=True)
 df.to_csv(os.path.join(path,f'all_best_models.csv'), index=False)
